@@ -1,7 +1,7 @@
 import asyncio
 import yt_dlp
 import logging
-from .config import get_ytdlp_options
+from config import get_ytdlp_options
 
 logger = logging.getLogger("downloader")
 logger.setLevel(logging.INFO)
