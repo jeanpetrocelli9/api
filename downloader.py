@@ -13,6 +13,7 @@ status_data = {
     "progress": 0.0,
     "downloaded_count": 0,
     "logs": [],
+    "finished_files": [], # List of relative paths (filenames) just finished
     "should_stop": False
 }
 
@@ -48,7 +49,11 @@ def update_progress(d):
 
     elif d['status'] == 'finished':
         status_data["downloaded_count"] += 1
-        log_event(f"Finished downloading: {d.get('filename')}")
+        filename = d.get('filename')
+        if filename:
+            # We want the basename to construct the URL easily
+            status_data["finished_files"].append(os.path.basename(filename))
+            log_event(f"Finished downloading: {os.path.basename(filename)}")
         status_data["progress"] = 100.0
 
 def execute_download(urls: list[str]):
@@ -114,6 +119,7 @@ def initialize_status():
     status_data["progress"] = 0.0
     status_data["downloaded_count"] = 0
     status_data["logs"].clear()
+    status_data["finished_files"].clear()
     status_data["should_stop"] = False
     log_event("Aplicação inicializada.")
 
