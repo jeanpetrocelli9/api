@@ -74,22 +74,6 @@
                     </button>
                 </div>
 
-                <!-- Auto-Download Toggle -->
-                <div class="input-card glass-panel-inner" style="margin-top: 15px; padding: 12px 20px;">
-                    <label class="toggle-container"
-                        style="display: flex; align-items: center; cursor: pointer; gap: 10px;">
-                        <input type="checkbox" id="autoDownloadToggle" checked
-                            style="width: 18px; height: 18px; accent-color: var(--primary-color);">
-                        <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-dim);">Download Automático
-                            para Dispositivo</span>
-                    </label>
-                </div>
-
-            </section>
-
-            <!-- Right Column: Status & Logs -->
-            <section class="status-panel">
-
                 <div class="status-card glass-panel-inner">
                     <div class="status-header">
                         <h3>Progresso Atual</h3>
@@ -114,9 +98,26 @@
                     </div>
                 </div>
 
+                <div class="log-card glass-panel-inner">
+                    <h3><i class="fa-solid fa-terminal"></i> Terminal Log</h3>
+                    <div class="log-container" id="logConsole">
+                        <!-- Logs will be injected here -->
+                    </div>
+                </div>
 
             </section>
         </div>
+
+        <!-- Recent Files Section -->
+        <section class="recent-files glass-panel-inner" style="margin-top: 20px;">
+            <div class="files-header">
+                <h3><i class="fa-regular fa-file-video"></i> Arquivos Recentes</h3>
+                <button onclick="refreshFiles()" class="btn-icon"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+            <div class="files-list" id="filesList">
+                <p class="empty-state">Nenhum arquivo baixado recentemente.</p>
+            </div>
+        </section>
 
     </div>
 
