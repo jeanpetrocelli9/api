@@ -1,6 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import os
@@ -9,7 +8,7 @@ from pathlib import Path
 import aiofiles
 
 from downloader import start_download_task, stop_download, get_current_status, initialize_status
-from config import DOWNLOADS_DIR, TEMP_DIR, BASE_DIR
+from config import DOWNLOADS_DIR, TEMP_DIR
 
 app = FastAPI(title="TikTok Mass Downloader API")
 
@@ -20,8 +19,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.mount("/downloads", StaticFiles(directory=DOWNLOADS_DIR), name="downloads")
 
 
 @app.get("/", response_class=HTMLResponse)
