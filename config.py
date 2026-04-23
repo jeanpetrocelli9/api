@@ -7,6 +7,9 @@ DOWNLOADS_DIR = BASE_DIR / "downloads"
 TEMP_DIR = BASE_DIR / "temp"
 ARCHIVE_FILE = BASE_DIR / "logs.txt"
 
+# FFmpeg settings
+FFMPEG_LOCATION = None # Use system-wide ffmpeg on Railway
+
 # Ensure directories exist
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
