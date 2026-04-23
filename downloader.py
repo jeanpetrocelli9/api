@@ -75,6 +75,7 @@ def execute_download(session_id: str, urls: list):
         'merge_output_format': 'mp4',
         'ffmpeg_location': FFMPEG_LOCATION,
         'noplaylist': True,
+        'restrictfilenames': True, # Garante nomes de arquivo sem espaços ou caracteres especiais (fix # no URL)
         'quiet': False, # Habilitado para ver detalhes do erro
         'no_warnings': False,
         'http_headers': {
