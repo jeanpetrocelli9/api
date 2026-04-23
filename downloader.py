@@ -1,126 +1,135 @@
 import asyncio
 import yt_dlp
 import logging
-from config import get_ytdlp_options
+import os
+from pathlib import Path
+from fastapi import BackgroundTasks
+from config import get_ytdlp_options, DOWNLOADS_DIR, FFMPEG_LOCATION
 
 logger = logging.getLogger("downloader")
 logger.setLevel(logging.INFO)
 
-# Global status tracking
-status_data = {
-    "is_active": False,
-    "current_url": "",
-    "current_file": "",
-    "progress": 0,
-    "downloaded_count": 0,
-    "logs": [],
-    "should_stop": False
-}
+# Global status tracking by session_id
+user_sessions = {}
 
-def log_event(message: str):
-    logger.info(message)
-    status_data["logs"].append(message)
-    # Keep log memory reasonable
-    if len(status_data["logs"]) > 200:
-        status_data["logs"] = status_data["logs"][-200:]
+def get_session_status(session_id: str):
+    if session_id not in user_sessions:
+        user_sessions[session_id] = {
+            "is_active": False,
+            "current_url": "",
+            "current_file": "",
+            "progress": 0,
+            "downloaded_count": 0,
+            "logs": [],
+            "should_stop": False
+        }
+    return user_sessions[session_id]
 
-def update_progress(d):
-    """
-    Hook for yt-dlp to report progress back to our status_data.
-    """
-    try:
-        if status_data["should_stop"]:
-            raise yt_dlp.utils.DownloadCancelled("Download stopped by user")
+def log_event(session_id: str, message: str):
+    status = get_session_status(session_id)
+    status["logs"].append(message)
+    if len(status["logs"]) > 100:
+        status["logs"].pop(0)
+    print(f"[{session_id}] {message}")
 
-        if d['status'] == 'downloading':
-            try:
-                downloaded = d.get('downloaded_bytes', 0)
-                total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
+def progress_hook_wrapper(session_id: str):
+    def progress_hook(d):
+        try:
+            status = get_session_status(session_id)
+            if status.get("should_stop"):
+                raise Exception("Manual stop requested")
+
+            if d['status'] == 'downloading':
+                # Handle percent calculation manually if needed, or use _percent_str
+                p_str = d.get('_percent_str', '0%').replace('%', '').strip()
+                try:
+                    status["progress"] = float(p_str)
+                except:
+                    status["progress"] = 0
                 
-                if total > 0:
-                    status_data["progress"] = round((downloaded / total) * 100, 2)
-                
-                # Optionally update current url/file based on dictionary info
-                filename = d.get('filename', '')
-                if filename and filename != status_data.get('current_file'):
-                     status_data['current_file'] = filename
+                status["current_url"] = d.get('info_dict', {}).get('webpage_url', "")
+                status["current_file"] = os.path.basename(d.get('filename', ''))
 
-            except Exception:
-                pass
+            elif d['status'] == 'finished':
+                status["downloaded_count"] += 1
+                log_event(session_id, f"Concluído: {os.path.basename(d.get('filename', 'Arquivo'))}")
+                status["progress"] = 100.0
+        except Exception as e:
+            if "Manual stop requested" in str(e):
+                raise yt_dlp.utils.DownloadCancelled()
+    return progress_hook
 
-        elif d['status'] == 'finished':
-            status_data["downloaded_count"] += 1
-            log_event(f"Finished downloading: {os.path.basename(d.get('filename', 'Unknown'))}")
-            status_data["progress"] = 100.0
-    except Exception as e:
-        if not isinstance(e, yt_dlp.utils.DownloadCancelled):
-             log_event(f"Progress hook error: {str(e)}")
-
-def execute_download(urls: list[str]):
-    """
-    Runs yt-dlp in a separate thread/sync block.
-    """
-    status_data["is_active"] = True
-    status_data["should_stop"] = False
+def execute_download(session_id: str, urls: list):
+    status = get_session_status(session_id)
+    status["is_active"] = True
+    status["should_stop"] = False
     
-    opts = get_ytdlp_options()
-    opts['progress_hooks'] = [update_progress]
+    # Create session-specific directory
+    session_dir = DOWNLOADS_DIR / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
     
+    ydl_opts = {
+        'format': 'bestvideo+bestaudio/best',
+        'outtmpl': str(session_dir / '%(title)s.%(ext)s'),
+        'progress_hooks': [progress_hook_wrapper(session_id)],
+        'merge_output_format': 'mp4',
+        'ffmpeg_location': FFMPEG_LOCATION,
+        'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
+    }
+
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             for url in urls:
-                if status_data["should_stop"]:
-                    log_event("Stopping process gracefully...")
+                if status["should_stop"]:
+                    log_event(session_id, "Download interrompido pelo usuário.")
                     break
                 
-                log_event(f"Starting extraction for: {url}")
-                status_data["current_url"] = url
-                status_data["progress"] = 0.0
+                log_event(session_id, f"Iniciando download: {url}")
                 try:
-                    # extract_info with download=True handles the actual DL
-                    ydl.extract_info(url, download=True)
+                    ydl.download([url])
                 except yt_dlp.utils.DownloadCancelled:
-                    log_event(f"Download of {url} was cancelled.")
+                    log_event(session_id, "Cancelado com sucesso.")
+                    break
                 except Exception as e:
-                    log_event(f"Error processing {url}: {str(e)}")
+                    log_event(session_id, f"Erro no vídeo {url}: {str(e)}")
                     
+        log_event(session_id, "Processo de fila concluído.")
     except Exception as e:
-         log_event(f"Fatal error in downloader: {str(e)}")
+        log_event(session_id, f"Erro fatal no downloader: {str(e)}")
     finally:
-         status_data["is_active"] = False
-         status_data["current_url"] = None
-         log_event("Download queue finished.")
+        status["is_active"] = False
 
-
-async def start_download_task(urls: list[str]):
-    """
-    Wraps execution so we can trigger it from FastAPI asynchronously
-    without blocking the API loop.
-    """
-    if status_data["is_active"]:
-         log_event("A download is already active. Ignoring new request to avoid overlap constraints.")
-         return False
-         
-    # Reset some status
-    status_data["downloaded_count"] = 0
-    status_data["logs"].clear()
+def start_download_task(session_id: str, urls: list, background_tasks: BackgroundTasks):
+    status = get_session_status(session_id)
+    if status["is_active"]:
+        return False
     
-    # Run in asyncio threadpool to avoid blocking API
-    asyncio.create_task(asyncio.to_thread(execute_download, urls))
+    # Reset status for new run
+    status["downloaded_count"] = 0
+    status["progress"] = 0
+    status["logs"].clear()
+    status["should_stop"] = False
+    
+    background_tasks.add_task(execute_download, session_id, urls)
     return True
 
-def stop_download():
-    status_data["should_stop"] = True
-    log_event("Stop signal sent...")
+def stop_download(session_id: str):
+    if session_id in user_sessions:
+        user_sessions[session_id]["should_stop"] = True
+        log_event(session_id, "Sinal de parada enviado...")
 
-def initialize_status():
-    status_data["is_active"] = False
-    status_data["current_url"] = None
-    status_data["progress"] = 0.0
-    status_data["downloaded_count"] = 0
-    status_data["logs"].clear()
-    status_data["should_stop"] = False
-    log_event("Aplicação inicializada.")
+def get_current_status(session_id: str):
+    return get_session_status(session_id)
 
-def get_current_status():
-    return status_data
+def initialize_status(session_id: str):
+    status = get_session_status(session_id)
+    status["is_active"] = False
+    status["current_url"] = ""
+    status["progress"] = 0.0
+    status["downloaded_count"] = 0
+    status["logs"].clear()
+    status["should_stop"] = False
+    log_event(session_id, "Sessão inicializada.")
+    return True
