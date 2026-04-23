@@ -122,7 +122,7 @@ async def list_files(x_session_id: str = Header(None)):
     try:
         for p in session_dir.rglob("*.mp4"):
             # URL will be /downloads/{session_id}/{filename}
-            url_path = f"/downloads/{x_session_id}/{p.name}" 
+            url_path = f"/downloads/{x_session_id}/{quote(p.name)}" 
             videos.append({
                 "name": p.name,
                 "url": url_path,
