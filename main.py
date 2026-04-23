@@ -1,139 +1,136 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
 import subprocess
+import asyncio
 from pathlib import Path
 import aiofiles
 
 from downloader import start_download_task, stop_download, get_current_status, initialize_status
 from config import DOWNLOADS_DIR, TEMP_DIR, BASE_DIR
 
-app = FastAPI(title="TikTok Mass Downloader API")
+app = FastAPI(title="TikTok, Instagram & Facebook Downloader")
 
-# Mount downloads folder
+# Mount downloads folder (base) - we'll handle sub-paths in the UI
 app.mount("/downloads", StaticFiles(directory=DOWNLOADS_DIR), name="downloads")
 
 # Allow CORS for local frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Local dev
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    try:
-        async with aiofiles.open(BASE_DIR / "index.html", mode='r', encoding='utf-8') as f:
-            content = await f.read()
-            return HTMLResponse(content=content)
-    except Exception as e:
-        return f"Erro ao carregar index.html: {e}"
-
-@app.get("/script.js")
-async def get_js():
-    try:
-        async with aiofiles.open(BASE_DIR / "script.js", mode='r', encoding='utf-8') as f:
-            content = await f.read()
-            return HTMLResponse(content=content, media_type="application/javascript")
-    except Exception as e:
-        return f"// Erro ao carregar script.js: {e}"
-
-@app.get("/style.css")
-async def get_css():
-    try:
-        async with aiofiles.open(BASE_DIR / "style.css", mode='r', encoding='utf-8') as f:
-            content = await f.read()
-            return HTMLResponse(content=content, media_type="text/css")
-    except Exception as e:
-        return f"/* Erro ao carregar style.css: {e} */"
-
-
 class URLRequest(BaseModel):
     url: str
 
-@app.post("/download/profile")
-async def download_profile(req: URLRequest):
-    if not req.url or ("tiktok.com" not in req.url and "instagram.com" not in req.url and "http" in req.url):
-        raise HTTPException(status_code=400, detail="Invalid TikTok/Instagram Profile URL")
-    
-    started = await start_download_task([req.url])
-    if not started:
-        raise HTTPException(status_code=400, detail="Download already in progress")
-    return {"message": "Profile download started"}
+def validate_url(url: str):
+    allowed = ["tiktok.com", "instagram.com", "facebook.com", "fb.watch"]
+    if not any(domain in url for domain in allowed):
+        raise HTTPException(status_code=400, detail="URL inválida. Use TikTok, Instagram ou Facebook.")
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    index_path = BASE_DIR / "index.html"
+    async with aiofiles.open(index_path, mode='r', encoding='utf-8') as f:
+        return await f.read()
+
+@app.get("/script.js")
+async def get_script():
+    script_path = BASE_DIR / "script.js"
+    async with aiofiles.open(script_path, mode='r', encoding='utf-8') as f:
+        content = await f.read()
+        return HTMLResponse(content=content, media_type="application/javascript")
+
+@app.get("/style.css")
+async def get_style():
+    style_path = BASE_DIR / "style.css"
+    async with aiofiles.open(style_path, mode='r', encoding='utf-8') as f:
+        content = await f.read()
+        return HTMLResponse(content=content, media_type="text/css")
 
 @app.post("/download/video")
-async def download_video(req: URLRequest):
-    if not req.url or ("tiktok.com" not in req.url and "instagram.com" not in req.url and "http" in req.url):
-         raise HTTPException(status_code=400, detail="Invalid TikTok or Instagram URL")
-         
-    started = await start_download_task([req.url])
-    if not started:
-        raise HTTPException(status_code=400, detail="Download already in progress")
-    return {"message": "Video download started"}
+async def download_video(req: URLRequest, background_tasks: BackgroundTasks, x_session_id: str = Header(None)):
+    if not x_session_id:
+        raise HTTPException(status_code=400, detail="Session ID missing")
+    validate_url(req.url)
+    success = start_download_task(x_session_id, [req.url], background_tasks)
+    if not success:
+        raise HTTPException(status_code=400, detail="Já existe um download em andamento para esta sessão.")
+    return {"message": "Download de vídeo iniciado!"}
+
+@app.post("/download/profile")
+async def download_profile(req: URLRequest, background_tasks: BackgroundTasks, x_session_id: str = Header(None)):
+    if not x_session_id:
+        raise HTTPException(status_code=400, detail="Session ID missing")
+    validate_url(req.url)
+    success = start_download_task(x_session_id, [req.url], background_tasks)
+    if not success:
+        raise HTTPException(status_code=400, detail="Já existe um download em andamento.")
+    return {"message": "Download do perfil iniciado (isso pode levar tempo)!"}
 
 @app.post("/download/list")
-async def download_list(file: UploadFile = File(...)):
-    if not file.filename.endswith(".txt"):
-         raise HTTPException(status_code=400, detail="Please upload a .txt file")
-         
-    # Save locally temporarily
-    temp_path = TEMP_DIR / file.filename
-    async with aiofiles.open(temp_path, 'wb') as out_file:
-         content = await file.read()
-         await out_file.write(content)
-         
-    # parse links
-    with open(temp_path, "r", encoding="utf-8") as f:
-         urls = [line.strip() for line in f if line.strip() and "http" in line]
-         
+async def download_list(file: UploadFile = File(...), background_tasks: BackgroundTasks = BackgroundTasks(), x_session_id: str = Header(None)):
+    if not x_session_id:
+        raise HTTPException(status_code=400, detail="Session ID missing")
+    
+    content = await file.read()
+    urls = [line.strip() for line in content.decode().splitlines() if line.strip()]
+    
     if not urls:
-         raise HTTPException(status_code=400, detail="No valid URLs found in file")
-         
-    started = await start_download_task(urls)
-    if not started:
-        raise HTTPException(status_code=400, detail="Download already in progress")
-        
-    return {"message": f"List download started with {len(urls)} URLs"}
+        raise HTTPException(status_code=400, detail="O arquivo está vazio.")
+    
+    success = start_download_task(x_session_id, urls, background_tasks)
+    if not success:
+        raise HTTPException(status_code=400, detail="Já existe um download em andamento.")
+    return {"message": f"Download de lista iniciado ({len(urls)} vídeos)!"}
 
 @app.get("/status")
-async def get_status():
-    return get_current_status()
+async def get_status(x_session_id: str = Header(None)):
+    if not x_session_id:
+        return {"is_active": False, "logs": [], "progress": 0}
+    return get_current_status(x_session_id)
 
 @app.post("/stop")
-async def stop():
-    stop_download()
-    return {"message": "Stop signal sent"}
+async def stop(x_session_id: str = Header(None)):
+    if x_session_id:
+        stop_download(x_session_id)
+    return {"message": "Sinal de parada enviado."}
 
 @app.post("/initialize")
-async def initialize():
-    initialize_status()
-    return {"message": "Application initialized"}
+async def initialize(x_session_id: str = Header(None)):
+    if not x_session_id:
+        raise HTTPException(status_code=400, detail="Session ID missing")
+    initialize_status(x_session_id)
+    return {"message": "Sessão inicializada."}
 
 @app.get("/files")
-async def list_files():
-    """Returns a list of recent downloaded video titles"""
+async def list_files(x_session_id: str = Header(None)):
+    if not x_session_id:
+        return []
+    
     videos = []
-    try:
-        # Search recursively for mp4s in downloads
-        for p in DOWNLOADS_DIR.rglob("*.mp4"):
-            url_path = "/downloads/" + p.relative_to(DOWNLOADS_DIR).as_posix()
-            videos.append({
-                "name": p.name,
-                "folder": p.parent.name,
-                "size_mb": round(p.stat().st_size / (1024*1024), 2),
-                "url": url_path,
-                "mtime": p.stat().st_mtime
-            })
-        
-        # Sort by modification time, newest first, limit 50
-        videos.sort(key=lambda x: x['mtime'], reverse=True)
-        return videos[:50]
-    except Exception as e:
-        print(f"Error reading files: {e}")
+    session_dir = DOWNLOADS_DIR / x_session_id
+    if not session_dir.exists():
         return []
 
+    try:
+        for p in session_dir.rglob("*.mp4"):
+            # URL will be /downloads/{session_id}/{filename}
+            url_path = f"/downloads/{x_session_id}/{p.name}" 
+            videos.append({
+                "name": p.name,
+                "url": url_path,
+                "size_mb": round(p.stat().st_size / (1024 * 1024), 2),
+                "folder": x_session_id
+            })
+    except Exception as e:
+        print(f"Error listing files: {e}")
+        
+    # Return latest first
+    return sorted(videos, key=lambda x: x['name'], reverse=True)
