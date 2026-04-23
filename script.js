@@ -1,6 +1,5 @@
 const API_BASE = "";
 let pollInterval = null;
-let autoDownloadedFiles = new Set(); // Track files already triggered for browser download
 
 // Ensure logs auto-scroll
 const logConsole = document.getElementById('logConsole');
@@ -57,7 +56,7 @@ async function startDownloadRequest(endpoint, payload, isFormData = false) {
         }
     } catch (error) {
         console.error(error);
-        showToast("Erro: " + error.message, true);
+        showToast("Erro de conexão com o servidor. O backend está rodando?", true);
     }
 }
 
@@ -115,7 +114,6 @@ async function initializeApp() {
 
             updateFileName();
             refreshFiles();
-            autoDownloadedFiles.clear(); // Clear tracking on reset
         }
     } catch (e) {
         showToast("Erro ao inicializar o servidor", true);
@@ -140,11 +138,11 @@ async function fetchStatus() {
         // Optional: stop polling if completely idle (but keeping it running handles manual backend starts)
         // We'll just keep polling every second for a fluid UI sync
     } catch (e) {
-        // Backend probably offline
+        console.error("Polling error:", e);
         const indicator = document.getElementById('statusIndicator');
         if (indicator) {
             indicator.className = "status-badge idle";
-            indicator.textContent = "Erro Conexão";
+            indicator.textContent = "Erro de Rede";
         }
     }
 }
@@ -167,19 +165,6 @@ function updateUI(status) {
         urlText.textContent = status.current_url || "Processando...";
         percentText.textContent = `${status.progress}%`;
         progressBar.style.width = `${status.progress}%`;
-
-        // Check for new finished files to trigger auto-download
-        if (status.finished_files && status.finished_files.length > 0) {
-            const autoEnabled = document.getElementById('autoDownloadToggle').checked;
-            status.finished_files.forEach(filename => {
-                if (!autoDownloadedFiles.has(filename)) {
-                    autoDownloadedFiles.add(filename);
-                    if (autoEnabled) {
-                        triggerBrowserDownload(filename);
-                    }
-                }
-            });
-        }
     } else {
         indicator.className = "status-badge idle";
         indicator.textContent = "Inativo";
@@ -265,26 +250,6 @@ async function refreshFiles() {
     } catch (e) {
         console.error("Failed to fetch files");
     }
-}
-
-function triggerBrowserDownload(relPath) {
-    const fileUrl = `/downloads/${relPath}`;
-    const filename = relPath.split('/').pop();
-
-    // Create a big toast with a manual link too, just in case
-    const toast = document.getElementById('toast');
-    toast.innerHTML = `Vídeo Pronto! <a href="${fileUrl}" download="${filename}" style="color: #fff; text-decoration: underline; font-weight: bold;">Clique aqui se não baixar</a>`;
-    toast.classList.remove('hidden');
-
-    // Automatic trigger
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setTimeout(() => toast.classList.add('hidden'), 6000);
 }
 
 // Initialize
