@@ -1,5 +1,6 @@
 const API_BASE = "";
 let pollInterval = null;
+let autoDownloadedFiles = new Set(); // Track files already triggered for browser download
 
 // Ensure logs auto-scroll
 const logConsole = document.getElementById('logConsole');
@@ -114,6 +115,7 @@ async function initializeApp() {
 
             updateFileName();
             refreshFiles();
+            autoDownloadedFiles.clear(); // Clear tracking on reset
         }
     } catch (e) {
         showToast("Erro ao inicializar o servidor", true);
@@ -162,6 +164,19 @@ function updateUI(status) {
         urlText.textContent = status.current_url || "Processando...";
         percentText.textContent = `${status.progress}%`;
         progressBar.style.width = `${status.progress}%`;
+
+        // Check for new finished files to trigger auto-download
+        if (status.finished_files && status.finished_files.length > 0) {
+            const autoEnabled = document.getElementById('autoDownloadToggle').checked;
+            status.finished_files.forEach(filename => {
+                if (!autoDownloadedFiles.has(filename)) {
+                    autoDownloadedFiles.add(filename);
+                    if (autoEnabled) {
+                        triggerBrowserDownload(filename);
+                    }
+                }
+            });
+        }
     } else {
         indicator.className = "status-badge idle";
         indicator.textContent = "Inativo";
@@ -247,6 +262,19 @@ async function refreshFiles() {
     } catch (e) {
         console.error("Failed to fetch files");
     }
+}
+
+function triggerBrowserDownload(filename) {
+    const fileUrl = `/downloads/${filename}`;
+    showToast(`Baixando para dispositivo: ${filename}`);
+
+    // Create a temporary link and click it
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // Initialize
