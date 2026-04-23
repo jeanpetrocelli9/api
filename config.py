@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 # Paths
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 DOWNLOADS_DIR = BASE_DIR / "downloads"
 TEMP_DIR = BASE_DIR / "temp"
 ARCHIVE_FILE = BASE_DIR / "logs.txt"
@@ -15,7 +15,7 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 def get_ytdlp_options(is_list=False):
     # Base options suitable for fast mass extraction and high quality mp4
     options = {
-        'ffmpeg_location': str(BASE_DIR / 'bin'),
+        'ffmpeg_location': str(BASE_DIR),
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'merge_output_format': 'mp4',
         'ignoreerrors': True, # Keep going on errors (crucial for mass downloads)

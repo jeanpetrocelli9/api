@@ -21,14 +21,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FRONTEND_DIR = BASE_DIR / "frontend"
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.mount("/downloads", StaticFiles(directory=DOWNLOADS_DIR), name="downloads")
-
-@app.get("/", response_class=HTMLResponse)
-async def serve_frontend():
-    with open(FRONTEND_DIR / "index.html", "r", encoding="utf-8") as f:
-        return f.read()
+# Serve o diretório raiz para arquivos estáticos (index.html, script.js, style.css)
+app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
 
 class URLRequest(BaseModel):
     url: str

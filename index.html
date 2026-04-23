@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok & Insta Downloader | Premium Tool</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="app-container glass-panel">
+        <header>
+            <div class="logo-area">
+                <i class="fa-brands fa-tiktok neon-text"></i>
+                <i class="fa-brands fa-instagram neon-text" style="color:#d62976; margin-left:10px;"></i>
+                <h1>TikTok & Insta Downloader</h1>
+            </div>
+            <p class="subtitle">Download videos from TikTok/Instagram profiles, single links, or bulk lists.</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Left Column: Inputs -->
+            <section class="control-panel">
+
+                <!-- Profile Download -->
+                <div class="input-card glass-panel-inner">
+                    <h3><i class="fa-solid fa-user"></i> Baixar Perfil</h3>
+                    <div class="input-group">
+                        <input type="text" id="profileUrl" placeholder="Ex: tiktok.com/@user ou instagram.com/user">
+                        <button onclick="downloadProfile()" class="btn-primary">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> Baixar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Single Video Download -->
+                <div class="input-card glass-panel-inner">
+                    <h3><i class="fa-solid fa-video"></i> Baixar Vídeo Único</h3>
+                    <div class="input-group">
+                        <input type="text" id="videoUrl" placeholder="Link do vídeo do TikTok ou Reels/Post do Insta">
+                        <button onclick="downloadVideo()" class="btn-primary">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> Baixar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bulk List Upload -->
+                <div class="input-card glass-panel-inner">
+                    <h3><i class="fa-solid fa-list-ol"></i> Baixar Lista (.txt)</h3>
+                    <div class="input-group file-group">
+                        <label for="fileUpload" class="file-label" id="fileLabelText">
+                            <i class="fa-solid fa-upload"></i> Escolher arquivo
+                        </label>
+                        <input type="file" id="fileUpload" accept=".txt" onchange="updateFileName()">
+                        <button onclick="downloadList()" class="btn-primary">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> Subir e Baixar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Global Actions -->
+                <div class="action-buttons">
+                    <button id="btnInit" class="btn-primary" onclick="initializeApp()">
+                        <i class="fa-solid fa-power-off"></i> Inicializar
+                    </button>
+                    <button id="btnStop" class="btn-danger" onclick="stopDownload()" disabled>
+                        <i class="fa-solid fa-circle-stop"></i> Parar Downloads
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- Right Column: Status & Logs -->
+            <section class="status-panel">
+
+                <div class="status-card glass-panel-inner">
+                    <div class="status-header">
+                        <h3>Progresso Atual</h3>
+                        <span id="statusIndicator" class="status-badge idle">Inativo</span>
+                    </div>
+
+                    <div class="progress-wrapper">
+                        <div class="progress-info">
+                            <span id="urlText" class="truncate-text">Aguardando tarefas...</span>
+                            <span id="percentText">0%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="progressBar"></div>
+                        </div>
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <span class="stat-label">Baixados</span>
+                            <span class="stat-value" id="downloadedCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="log-card glass-panel-inner">
+                    <h3><i class="fa-solid fa-terminal"></i> Terminal Log</h3>
+                    <div class="log-container" id="logConsole">
+                        <!-- Logs will be injected here -->
+                    </div>
+                </div>
+
+            </section>
+        </div>
+
+        <!-- Recent Files Section -->
+        <section class="recent-files glass-panel-inner">
+            <div class="files-header">
+                <h3><i class="fa-regular fa-file-video"></i> Arquivos Recentes</h3>
+                <button onclick="refreshFiles()" class="btn-icon"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+            <div class="files-list" id="filesList">
+                <p class="empty-state">Nenhum arquivo baixado recentemente.</p>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Modals or Toasts could go here -->
+    <div id="toast" class="toast hidden">Mensagem</div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
