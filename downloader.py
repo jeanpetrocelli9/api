@@ -9,8 +9,9 @@ logger.setLevel(logging.INFO)
 # Global status tracking
 status_data = {
     "is_active": False,
-    "current_url": None,
-    "progress": 0.0,
+    "current_url": "",
+    "current_file": "",
+    "progress": 0,
     "downloaded_count": 0,
     "logs": [],
     "should_stop": False
@@ -49,20 +50,7 @@ def update_progress(d):
 
         elif d['status'] == 'finished':
             status_data["downloaded_count"] += 1
-            filename = d.get('filename')
-            if filename:
-                try:
-                    # Resolve to absolute just to be sure
-                    abs_filename = Path(filename).resolve()
-                    abs_downloads = Path(DOWNLOADS_DIR).resolve()
-                    rel_path = abs_filename.relative_to(abs_downloads).as_posix()
-                    status_data["finished_files"].append(rel_path)
-                    log_event(f"Finished: {rel_path}")
-                except Exception as e:
-                    # Fallback
-                    base = os.path.basename(filename)
-                    status_data["finished_files"].append(base)
-                    log_event(f"Finished: {base}")
+            log_event(f"Finished downloading: {os.path.basename(d.get('filename', 'Unknown'))}")
             status_data["progress"] = 100.0
     except Exception as e:
         if not isinstance(e, yt_dlp.utils.DownloadCancelled):
