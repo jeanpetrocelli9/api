@@ -1,10 +1,21 @@
 const API_BASE = "";
 let pollInterval = null;
 
+// Unique Session ID for Privacy
+function getSessionId() {
+    let sid = localStorage.getItem('downloader_session_id');
+    if (!sid) {
+        sid = 'user_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+        localStorage.setItem('downloader_session_id', sid);
+    }
+    return sid;
+}
+const SESSION_ID = getSessionId();
+
 // Ensure logs auto-scroll
 const logConsole = document.getElementById('logConsole');
 function scrollToBottom() {
-    logConsole.scrollTop = logConsole.scrollHeight;
+    if (logConsole) logConsole.scrollTop = logConsole.scrollHeight;
 }
 
 // Update file input label
@@ -31,17 +42,20 @@ function showToast(message, isError = false) {
     }, 3000);
 }
 
-// API Calls
+// API Calls with Session Header
 async function startDownloadRequest(endpoint, payload, isFormData = false) {
     try {
         const options = {
             method: 'POST',
+            headers: {
+                'X-Session-ID': SESSION_ID
+            }
         };
 
         if (isFormData) {
             options.body = payload;
         } else {
-            options.headers = { 'Content-Type': 'application/json' };
+            options.headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(payload);
         }
 
@@ -56,10 +70,9 @@ async function startDownloadRequest(endpoint, payload, isFormData = false) {
         }
     } catch (error) {
         console.error(error);
-        showToast("Erro de conexão com o servidor. O backend está rodando?", true);
+        showToast("Erro de conexão com o servidor.", true);
     }
 }
-
 
 function downloadProfile() {
     const url = document.getElementById('profileUrl').value;
@@ -69,7 +82,7 @@ function downloadProfile() {
 
 function downloadVideo() {
     const url = document.getElementById('videoUrl').value;
-    if (!url) return showToast("Insira o URL do vídeo", true);
+    if (!url) return showToast("Insira o URL", true);
     startDownloadRequest('/download/video', { url: url });
 }
 
@@ -84,40 +97,35 @@ function downloadList() {
 
 async function stopDownload() {
     try {
-        const res = await fetch(`${API_BASE}/stop`, { method: 'POST' });
-        if (res.ok) showToast("Parando downloads...");
+        await fetch(`${API_BASE}/stop`, {
+            method: 'POST',
+            headers: { 'X-Session-ID': SESSION_ID }
+        });
+        showToast("Parando downloads...");
     } catch (e) {
         showToast("Erro ao conectar", true);
     }
 }
 
-
-
 async function initializeApp() {
     try {
-        const res = await fetch(`${API_BASE}/initialize`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/initialize`, {
+            method: 'POST',
+            headers: { 'X-Session-ID': SESSION_ID }
+        });
         if (res.ok) {
-            showToast("Aplicativo Inicializado!", false);
-            const logConsole = document.getElementById('logConsole');
+            showToast("Sessão Inicializada!", false);
             if (logConsole) logConsole.innerHTML = "";
             document.getElementById('downloadedCount').textContent = "0";
             document.getElementById('urlText').textContent = "Aguardando tarefas...";
             document.getElementById('percentText').textContent = "0%";
             document.getElementById('progressBar').style.width = "0%";
 
-            // clear inputs
-            const pUrl = document.getElementById('profileUrl');
-            if (pUrl) pUrl.value = '';
-            const vUrl = document.getElementById('videoUrl');
-            if (vUrl) vUrl.value = '';
-            const fUp = document.getElementById('fileUpload');
-            if (fUp) fUp.value = '';
-
             updateFileName();
             refreshFiles();
         }
     } catch (e) {
-        showToast("Erro ao inicializar o servidor", true);
+        showToast("Erro ao inicializar sessão", true);
     }
 }
 
@@ -125,26 +133,19 @@ async function initializeApp() {
 function startPolling() {
     if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(fetchStatus, 1000);
-    fetchStatus(); // immediate call
+    fetchStatus();
 }
 
 async function fetchStatus() {
     try {
-        const res = await fetch(`${API_BASE}/status`);
+        const res = await fetch(`${API_BASE}/status`, {
+            headers: { 'X-Session-ID': SESSION_ID }
+        });
         if (!res.ok) return;
         const data = await res.json();
-
         updateUI(data);
-
-        // Optional: stop polling if completely idle (but keeping it running handles manual backend starts)
-        // We'll just keep polling every second for a fluid UI sync
     } catch (e) {
         console.error("Polling error:", e);
-        const indicator = document.getElementById('statusIndicator');
-        if (indicator) {
-            indicator.className = "status-badge idle";
-            indicator.textContent = "Erro de Rede";
-        }
     }
 }
 
@@ -157,11 +158,10 @@ function updateUI(status) {
     const progressBar = document.getElementById('progressBar');
     const downloadedCount = document.getElementById('downloadedCount');
 
-    // Status Badge
     if (status.is_active) {
         indicator.className = "status-badge active";
         indicator.textContent = "Baixando";
-        btnStop.disabled = false;
+        if (btnStop) btnStop.disabled = false;
 
         urlText.textContent = status.current_url || "Processando...";
         percentText.textContent = `${status.progress}%`;
@@ -169,13 +169,12 @@ function updateUI(status) {
     } else {
         indicator.className = "status-badge idle";
         indicator.textContent = "Inativo";
-        btnStop.disabled = true;
+        if (btnStop) btnStop.disabled = true;
 
         urlText.textContent = "Aguardando tarefas...";
         percentText.textContent = "0%";
         progressBar.style.width = "0%";
 
-        // Refresh files list automatically when idle after a burst
         if (lastLogCount > 0 && status.logs.length === lastLogCount && !window.hasRefreshedOnceAfterIdle) {
             refreshFiles();
             window.hasRefreshedOnceAfterIdle = true;
@@ -183,37 +182,27 @@ function updateUI(status) {
     }
 
     if (status.is_active) window.hasRefreshedOnceAfterIdle = false;
-
-    // Stats
     downloadedCount.textContent = status.downloaded_count;
 
-
-    // Logs
     if (status.logs.length !== lastLogCount) {
-        // Find new logs
         const newLogs = status.logs.slice(lastLogCount);
         newLogs.forEach(entry => {
             const div = document.createElement('div');
             div.className = 'log-entry';
-
             const timeSpan = document.createElement('span');
             timeSpan.className = 'log-time';
             const now = new Date();
             timeSpan.textContent = `[${now.toLocaleTimeString()}]`;
-
             const textSpan = document.createElement('span');
             textSpan.textContent = entry;
-
             div.appendChild(timeSpan);
             div.appendChild(textSpan);
             logConsole.appendChild(div);
         });
 
-        // Remove excess elements to prevent memory issues in DOM
-        while (logConsole.children.length > 200) {
+        while (logConsole.children.length > 100) {
             logConsole.removeChild(logConsole.firstChild);
         }
-
         lastLogCount = status.logs.length;
         scrollToBottom();
     }
@@ -221,7 +210,9 @@ function updateUI(status) {
 
 async function refreshFiles() {
     try {
-        const res = await fetch(`${API_BASE}/files`);
+        const res = await fetch(`${API_BASE}/files`, {
+            headers: { 'X-Session-ID': SESSION_ID }
+        });
         if (!res.ok) return;
         const files = await res.json();
 
@@ -229,7 +220,7 @@ async function refreshFiles() {
         list.innerHTML = "";
 
         if (files.length === 0) {
-            list.innerHTML = '<p class="empty-state">Nenhum arquivo baixado recentemente.</p>';
+            list.innerHTML = '<p class="empty-state">Nenhum arquivo encontrado para sua sessão.</p>';
             return;
         }
 
@@ -240,7 +231,7 @@ async function refreshFiles() {
                 <div class="file-icon"><i class="fa-solid fa-play"></i></div>
                 <div class="file-details" style="flex:1;">
                     <span class="file-name" title="${f.name}">${f.name}</span>
-                    <span class="file-meta">${f.folder} • ${f.size_mb} MB</span>
+                    <span class="file-meta">${f.size_mb} MB</span>
                 </div>
                 <a href="${f.url}" download="${f.name}" target="_blank" class="btn-icon" style="color: var(--primary-color);">
                     <i class="fa-solid fa-download"></i>
@@ -254,8 +245,6 @@ async function refreshFiles() {
     }
 }
 
-
-// Initialize
 window.onload = () => {
     startPolling();
     refreshFiles();
