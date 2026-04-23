@@ -1,7 +1,8 @@
 import asyncio
 import yt_dlp
 import logging
-from config import get_ytdlp_options
+from config import get_ytdlp_options, DOWNLOADS_DIR
+from pathlib import Path
 
 logger = logging.getLogger("downloader")
 logger.setLevel(logging.INFO)
@@ -47,13 +48,17 @@ def update_progress(d):
         except Exception as e:
             pass
 
-    elif d['status'] == 'finished':
-        status_data["downloaded_count"] += 1
         filename = d.get('filename')
         if filename:
-            # We want the basename to construct the URL easily
-            status_data["finished_files"].append(os.path.basename(filename))
-            log_event(f"Finished downloading: {os.path.basename(filename)}")
+            # Get path relative to DOWNLOADS_DIR for correct URL construction
+            try:
+                rel_path = Path(filename).relative_to(DOWNLOADS_DIR).as_posix()
+                status_data["finished_files"].append(rel_path)
+                log_event(f"Finished downloading: {os.path.basename(filename)}")
+            except Exception:
+                # Fallback to basename if not within DOWNLOADS_DIR (should not happen)
+                status_data["finished_files"].append(os.path.basename(filename))
+                log_event(f"Finished downloading: {os.path.basename(filename)}")
         status_data["progress"] = 100.0
 
 def execute_download(urls: list[str]):
