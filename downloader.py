@@ -1,8 +1,7 @@
 import asyncio
 import yt_dlp
 import logging
-from config import get_ytdlp_options, DOWNLOADS_DIR
-from pathlib import Path
+from config import get_ytdlp_options
 
 logger = logging.getLogger("downloader")
 logger.setLevel(logging.INFO)
@@ -14,7 +13,6 @@ status_data = {
     "progress": 0.0,
     "downloaded_count": 0,
     "logs": [],
-    "finished_files": [], # List of relative paths (filenames) just finished
     "should_stop": False
 }
 
@@ -29,37 +27,46 @@ def update_progress(d):
     """
     Hook for yt-dlp to report progress back to our status_data.
     """
-    if status_data["should_stop"]:
-        raise yt_dlp.utils.DownloadCancelled("Download stopped by user")
+    try:
+        if status_data["should_stop"]:
+            raise yt_dlp.utils.DownloadCancelled("Download stopped by user")
 
-    if d['status'] == 'downloading':
-        try:
-            downloaded = d.get('downloaded_bytes', 0)
-            total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
-            
-            if total > 0:
-                status_data["progress"] = round((downloaded / total) * 100, 2)
-            
-            # Optionally update current url/file based on dictionary info
-            filename = d.get('filename', '')
-            if filename and filename != status_data.get('current_file'):
-                 status_data['current_file'] = filename
-
-        except Exception as e:
-            pass
-
-        filename = d.get('filename')
-        if filename:
-            # Get path relative to DOWNLOADS_DIR for correct URL construction
+        if d['status'] == 'downloading':
             try:
-                rel_path = Path(filename).relative_to(DOWNLOADS_DIR).as_posix()
-                status_data["finished_files"].append(rel_path)
-                log_event(f"Finished downloading: {os.path.basename(filename)}")
+                downloaded = d.get('downloaded_bytes', 0)
+                total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
+                
+                if total > 0:
+                    status_data["progress"] = round((downloaded / total) * 100, 2)
+                
+                # Optionally update current url/file based on dictionary info
+                filename = d.get('filename', '')
+                if filename and filename != status_data.get('current_file'):
+                     status_data['current_file'] = filename
+
             except Exception:
-                # Fallback to basename if not within DOWNLOADS_DIR (should not happen)
-                status_data["finished_files"].append(os.path.basename(filename))
-                log_event(f"Finished downloading: {os.path.basename(filename)}")
-        status_data["progress"] = 100.0
+                pass
+
+        elif d['status'] == 'finished':
+            status_data["downloaded_count"] += 1
+            filename = d.get('filename')
+            if filename:
+                try:
+                    # Resolve to absolute just to be sure
+                    abs_filename = Path(filename).resolve()
+                    abs_downloads = Path(DOWNLOADS_DIR).resolve()
+                    rel_path = abs_filename.relative_to(abs_downloads).as_posix()
+                    status_data["finished_files"].append(rel_path)
+                    log_event(f"Finished: {rel_path}")
+                except Exception as e:
+                    # Fallback
+                    base = os.path.basename(filename)
+                    status_data["finished_files"].append(base)
+                    log_event(f"Finished: {base}")
+            status_data["progress"] = 100.0
+    except Exception as e:
+        if not isinstance(e, yt_dlp.utils.DownloadCancelled):
+             log_event(f"Progress hook error: {str(e)}")
 
 def execute_download(urls: list[str]):
     """
@@ -124,7 +131,6 @@ def initialize_status():
     status_data["progress"] = 0.0
     status_data["downloaded_count"] = 0
     status_data["logs"].clear()
-    status_data["finished_files"].clear()
     status_data["should_stop"] = False
     log_event("Aplicação inicializada.")
 
