@@ -22,8 +22,7 @@ app.add_middleware(
 )
 
 app.mount("/downloads", StaticFiles(directory=DOWNLOADS_DIR), name="downloads")
-# Serve o diretório raiz para arquivos estáticos (index.html, script.js, style.css)
-app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
+
 
 class URLRequest(BaseModel):
     url: str
