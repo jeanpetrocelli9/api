@@ -8,7 +8,7 @@ from pathlib import Path
 import aiofiles
 
 from downloader import start_download_task, stop_download, get_current_status, initialize_status
-from config import DOWNLOADS_DIR, TEMP_DIR
+from config import DOWNLOADS_DIR, TEMP_DIR, BASE_DIR
 
 app = FastAPI(title="TikTok Mass Downloader API")
 
