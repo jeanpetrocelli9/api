@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
 import subprocess
@@ -12,22 +13,8 @@ from config import DOWNLOADS_DIR, TEMP_DIR, BASE_DIR
 
 app = FastAPI(title="TikTok Mass Downloader API")
 
-# Custom secure file delivery endpoint
-@app.get("/get-file/{file_path:path}")
-async def get_file(file_path: str):
-    full_path = (DOWNLOADS_DIR / file_path).resolve()
-    # Security check: ensure path is within DOWNLOADS_DIR
-    if not str(full_path).startswith(str(DOWNLOADS_DIR.resolve())):
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    if not full_path.exists() or not full_path.is_file():
-        raise HTTPException(status_code=404, detail="File not found")
-        
-    return FileResponse(
-        path=full_path, 
-        filename=full_path.name,
-        media_type='application/octet-stream' # Forces download in most browsers
-    )
+# Mount downloads folder
+app.mount("/downloads", StaticFiles(directory=DOWNLOADS_DIR), name="downloads")
 
 # Allow CORS for local frontend
 app.add_middleware(
@@ -134,7 +121,7 @@ async def list_files():
     try:
         # Search recursively for mp4s in downloads
         for p in DOWNLOADS_DIR.rglob("*.mp4"):
-            url_path = "/get-file/" + p.relative_to(DOWNLOADS_DIR).as_posix()
+            url_path = "/downloads/" + p.relative_to(DOWNLOADS_DIR).as_posix()
             videos.append({
                 "name": p.name,
                 "folder": p.parent.name,
