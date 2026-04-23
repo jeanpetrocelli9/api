@@ -1,6 +1,5 @@
 const API_BASE = "";
 let pollInterval = null;
-let autoDownloadedFiles = new Set();
 
 // Ensure logs auto-scroll
 const logConsole = document.getElementById('logConsole');
@@ -188,18 +187,6 @@ function updateUI(status) {
     // Stats
     downloadedCount.textContent = status.downloaded_count;
 
-    // Auto-download logic
-    const autoEnabled = document.getElementById('autoDownloadToggle').checked;
-    if (status.finished_files && status.finished_files.length > 0) {
-        status.finished_files.forEach(fileRelPath => {
-            if (!autoDownloadedFiles.has(fileRelPath)) {
-                autoDownloadedFiles.add(fileRelPath);
-                if (autoEnabled) {
-                    triggerBrowserDownload(fileRelPath);
-                }
-            }
-        });
-    }
 
     // Logs
     if (status.logs.length !== lastLogCount) {
@@ -267,25 +254,6 @@ async function refreshFiles() {
     }
 }
 
-function triggerBrowserDownload(relPath) {
-    const fileUrl = `/get-file/${relPath}`;
-    const filename = relPath.split('/').pop();
-
-    // Create a big toast with a manual link too, just in case
-    const toast = document.getElementById('toast');
-    toast.innerHTML = `Vídeo Pronto! <a href="${fileUrl}" download="${filename}" style="color: #fff; text-decoration: underline; font-weight: bold;">Clique aqui se não baixar</a>`;
-    toast.classList.remove('hidden');
-
-    // Automatic trigger
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setTimeout(() => toast.classList.add('hidden'), 6000);
-}
 
 // Initialize
 window.onload = () => {
