@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 # Paths
@@ -8,7 +9,11 @@ TEMP_DIR = BASE_DIR / "temp"
 ARCHIVE_FILE = BASE_DIR / "logs.txt"
 
 # FFmpeg settings
-FFMPEG_LOCATION = None # Use system-wide ffmpeg on Railway
+if sys.platform == "win32":
+    ffmpeg_exe = BASE_DIR / "ffmpeg.exe"
+    FFMPEG_LOCATION = str(ffmpeg_exe) if ffmpeg_exe.exists() else None
+else:
+    FFMPEG_LOCATION = None # Use system PATH on Linux/Railway
 
 # Ensure directories exist
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
