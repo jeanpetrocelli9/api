@@ -57,7 +57,7 @@ async function startDownloadRequest(endpoint, payload, isFormData = false) {
         }
     } catch (error) {
         console.error(error);
-        showToast("Erro de conexão com o servidor. O backend está rodando?", true);
+        showToast("Erro: " + error.message, true);
     }
 }
 
@@ -141,8 +141,11 @@ async function fetchStatus() {
         // We'll just keep polling every second for a fluid UI sync
     } catch (e) {
         // Backend probably offline
-        document.getElementById('statusIndicator').className = "status-badge idle";
-        document.getElementById('statusIndicator').textContent = "Offline";
+        const indicator = document.getElementById('statusIndicator');
+        if (indicator) {
+            indicator.className = "status-badge idle";
+            indicator.textContent = "Erro Conexão";
+        }
     }
 }
 
@@ -267,15 +270,21 @@ async function refreshFiles() {
 function triggerBrowserDownload(relPath) {
     const fileUrl = `/downloads/${relPath}`;
     const filename = relPath.split('/').pop();
-    showToast(`Baixando para dispositivo: ${filename}`);
 
-    // Create a temporary link and click it
+    // Create a big toast with a manual link too, just in case
+    const toast = document.getElementById('toast');
+    toast.innerHTML = `Vídeo Pronto! <a href="${fileUrl}" download="${filename}" style="color: #fff; text-decoration: underline; font-weight: bold;">Clique aqui se não baixar</a>`;
+    toast.classList.remove('hidden');
+
+    // Automatic trigger
     const link = document.createElement('a');
     link.href = fileUrl;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    setTimeout(() => toast.classList.add('hidden'), 6000);
 }
 
 // Initialize
