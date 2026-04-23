@@ -264,8 +264,9 @@ async function refreshFiles() {
     }
 }
 
-function triggerBrowserDownload(filename) {
-    const fileUrl = `/downloads/${filename}`;
+function triggerBrowserDownload(relPath) {
+    const fileUrl = `/downloads/${relPath}`;
+    const filename = relPath.split('/').pop();
     showToast(`Baixando para dispositivo: ${filename}`);
 
     // Create a temporary link and click it
