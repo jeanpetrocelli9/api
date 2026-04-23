@@ -60,6 +60,11 @@ async function startDownloadRequest(endpoint, payload, isFormData = false) {
     }
 }
 
+function triggerBrowserDownload(relPath) {
+    const fileUrl = `/get-file/${relPath}`;
+    window.open(fileUrl, '_blank');
+}
+
 function downloadProfile() {
     const url = document.getElementById('profileUrl').value;
     if (!url) return showToast("Insira o URL do perfil", true);
